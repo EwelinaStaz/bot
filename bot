@@ -1,0 +1,75 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+__author__ = 'eprzybyla'
+import os, sys
+from jira import JIRA
+from hypchat import HypChat
+from HTMLParser import HTMLParser
+
+hc = HypChat("QlcTPJBlyr9Wk2C1sYD8OPQoXnP8TNvuuJCUZZvi")
+jira = JIRA('http://jira.contman.local', basic_auth=('ewelinastaz', 'contman'))
+users = hc.users()
+lista_tymczasowa = {}
+pracaUzytkownikow = {}
+propozycjePracy = {}
+zadania = {}
+
+issues_updated = jira.search_issues('sprint in openSprints() AND updated > "-1d"')
+for issue in issues_updated:
+
+    worklogs = jira.worklogs(issue.key)
+    for worklog in worklogs:
+
+        if not worklog.author.displayName in pracaUzytkownikow:
+            praca = {}
+        else:
+            praca = pracaUzytkownikow[worklog.author.displayName]
+        praca[issue.key] = issue
+        pracaUzytkownikow[worklog.author.displayName] = praca
+
+for uzytkownik, zadania in pracaUzytkownikow.iteritems():
+    for user in users['items']:
+        message = []
+        message.append('\n' + uzytkownik + u""" wczoraj wykonywał zadania: """)
+        for zadanie in zadania.itervalues():
+            message.append(zadanie.key + ' ' + zadanie.fields.summary)
+        if user['mention_name'] == 'pkwasniewska':
+            user.message('\n '.join(message))
+
+
+
+issues_in_sprint = jira.search_issues('sprint in openSprints() AND status = "Next"')
+for issue in issues_in_sprint:
+    if hasattr(issue.fields, 'assignee') and hasattr(issue.fields.assignee, 'displayName'):
+        if not issue.fields.assignee in propozycjePracy:
+            propozycja = {}
+        else:
+            propozycja = propozycjePracy[issue.fields.assignee.displayName]
+        propozycja[issue.key] = issue
+        propozycjePracy[issue.fields.assignee.displayName] = propozycja
+
+
+
+for uzytkownik, propo in propozycjePracy.iteritems():
+    for user in users['items']:
+        messagee = []
+        messagee.append('\n' + uzytkownik + u""" może wykonać zadania: """)
+        for prop in propo.itervalues():
+            messagee.append(prop.key + ' ' + prop.fields.summary)
+        if user['mention_name'] == 'pkwasniewska':
+            user.message('\n '.join(messagee))
+
+
+
+
+issues_unassigned = jira.search_issues('sprint in openSprints() AND status = "Next"')
+message = []
+message.append('\n' + u"""Zadania nieprzypisane, które należałoby wykonać: """)
+for issue in issues_unassigned:
+    if not hasattr(issue.fields.assignee, 'displayName'):
+        message.append(issue.key + ' ' + issue.fields.summary)
+for user in users['items']:
+    if user['mention_name'] == 'pkwasniewska':
+        user.message('\n'.join(message))
+
+
